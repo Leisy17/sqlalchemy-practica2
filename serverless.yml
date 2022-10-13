@@ -1,0 +1,237 @@
+service: sqlalchemy-practica
+
+# app: sqlalchemy-practica
+# org: leisyred5g
+
+frameworkVersion: "3"
+
+plugins:
+  - serverless-offline
+  - serverless-python-requirements
+  - "@agiledigital/serverless-sns-sqs-lambda"
+
+custom:
+  serverless-offline:
+    host: 0.0.0.0
+    port: 3000
+  fileUploadBucketName: ${self:service}-${self:provider.stage}-bucket
+
+  pythonRequirements:
+    fileName: requirements.txt
+    #useStaticCache: false
+    layer: true
+    slim: true
+    strip: false
+    slimPatterns:
+      - "mysql/vendor/**"
+      - "**/*.py[c|o]"
+      - "**/__pycache__*"
+
+  topicArn: !Ref CommentTopic
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: dev
+
+  layers:
+    - Ref: PythonRequirementsLambdaLayer
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - lambda:InvokeFunction
+            - secretsmanager:GetSecretValue
+            - s3:PutObject
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:GetQueueUrl
+            - sns:publish
+          Resource:
+            - "*"
+
+  environment:
+    SECRET: admin
+    BUCKET_NAME: ${self:custom.fileUploadBucketName}
+    QUEUE_NAME: sqs-queue-comment.fifo
+    QUEUEOWNERAWSACCOUNTID: ${aws:accountId}
+    SNS_TOPIC_ARN: ${self:custom.topicArn}
+
+functions:
+  create_user:
+    handler: handlers/create_user.create_user
+    name: create_user-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/create_user
+          method: post
+
+  create_new:
+    handler: handlers/create_new.create_new
+    name: create_new-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/create_new
+          method: post
+
+  MultiCreateComment:
+    handler: handlers/create_comment.create_comment
+    name: MultiCreateComment-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/create_comment
+          method: post
+      - sqs:
+          arn: { Fn::GetAtt: [NewSQSQueue, Arn] }
+      - snsSqs:
+          name: EvCreComment
+          topicArn: ${self:custom.topicArn}
+
+  create_author:
+    handler: handlers/create_author.create_author
+    name: create_author-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/create_author
+          method: post
+
+  update_user:
+    handler: handlers/update_user.update_user
+    name: update_user-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/update_user
+          method: patch
+
+  update_new:
+    handler: handlers/update_new.update_new
+    name: update_new-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/update_new
+          method: patch
+
+  update_comment:
+    handler: handlers/update_comment.update_comment
+    name: update_comment-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/update_comment
+          method: patch
+
+  delete_comment:
+    handler: handlers/delete_comment.delete_comment
+    name: delete_comment-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/delete_comment
+          method: put
+
+  get_comment:
+    handler: handlers/get_comment.get_comment
+    name: get_comment-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/get_comment
+          method: get
+
+  get_images:
+    handler: handlers/get_image.get_image
+    name: get_image-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/get_image
+          method: get
+
+  delete_new:
+    handler: handlers/delete_new.delete_new
+    name: delete_new-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/delete_new
+          method: patch
+
+  delete_user:
+    handler: handlers/delete_user.delete_user
+    name: delete_user-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/delete_user
+          method: put
+
+  upload_image:
+    handler: handlers/upload_image.upload_image
+    name: upload_image-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/upload_image
+          method: post
+
+  test_image_invoke:
+    handler: handlers/test.test
+    name: test-image-invoke-${self:provider.stage}
+    environment:
+      LambdaComment:
+        Fn::GetAtt:
+          - MultiCreateCommentLambdaFunction
+          - Arn
+    events:
+      - http:
+          path: sqlalchemy-practica/test
+          method: post
+
+  test_async_invoke:
+    handler: handlers/test2.test2
+    name: test_async_invoke-${self:provider.stage}
+    environment:
+      LambdaComment:
+        Fn::GetAtt:
+          - MultiCreateCommentLambdaFunction
+          - Arn
+    events:
+      - http:
+          path: sqlalchemy-practica/test2
+          method: post
+
+  test_invoke_sqs:
+    handler: handlers/test3.test3
+    name: test_invoke_sqs-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/test3
+          method: post
+
+  test_invoke_sns:
+    handler: handlers/test5.test5
+    name: test_invoke_sns-${self:provider.stage}
+    events:
+      - http:
+          path: sqlalchemy-practica/test5
+          method: post
+
+  test_receive_sqs:
+    handler: handlers/test4.test4
+    name: test_receive_sqs-${self:provider.stage}
+
+resources:
+  Resources:
+    FileBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.fileUploadBucketName}
+        AccessControl: Private
+
+    NewSQSQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: sqs-queue-comment.fifo
+        FifoQueue: true
+
+    CommentTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: CreCommentTopic
