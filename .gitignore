@@ -1,0 +1,12 @@
+Db/connection.py
+__pycache__/
+node_modules
+node_modules
+package.json
+package-lock.json
+requirements
+cloudformation-template-create-stack.json
+cloudformation-template-update-stack.json
+pythonRequirements.zip
+serverless-state.json
+sqlalchemy-practica.zip

@@ -1,0 +1,4 @@
+boto3
+pymysql
+sqlalchemy
+typing_extensions
