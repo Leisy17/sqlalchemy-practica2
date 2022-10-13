@@ -10,3 +10,7 @@ cloudformation-template-update-stack.json
 pythonRequirements.zip
 serverless-state.json
 sqlalchemy-practica.zip
+key
+key.pub
+pair
+pair.pub
